@@ -479,7 +479,7 @@ K-means clustering with *k = 4* was executed and the results are clusters with m
 ```{r echo=FALSE}
 clus1 <- aggregate(train_km, by=list(cluster=mod_k1$cluster), mean)
 # to display head(data) in a more tidy format
-knitr::kable(clus1, format="markdown")
+knitr::kable(round(clus1,2), format="markdown")
 ```
 
 :::
