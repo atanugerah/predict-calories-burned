@@ -1,0 +1,572 @@
+---
+title: "FitBit Data Analysis & Report"
+author: "Amadea Franstella Tanugerah, Christina Erica Sugianto, and Maria Fabiola Pratiwi"
+date: 'Thursday, May 6 2021'
+output: html_document
+---
+
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# loading libraries
+library(knitr)      # to knit document
+library(readxl)     # to read excel files
+library(lattice)    # to 
+library(colorspace) # to set color
+library(scales)     # to display in percentages
+library(reshape2)   # to melt and help with correlation
+library(ggcorrplot) # to plot correlation heat map and other plots
+library(ggplot2)    # a more versatile plot library
+library(cowplot)    # to display corr-plot side by side
+library(caret)      # to check model accuracy
+library(factoextra) # to execute k-means clustering
+library(cluster)    # to find the best number of clusters (k)
+library(rpart)      # to execute decision tree
+library(rpart.plot) # to plot decision trees
+library(clue)       # to help predict for K-means
+```
+
+<br>
+
+### Using K-Means Clustering and Regression Tree to Predict Calories Burned
+
+The objective of this report are as follows:   
+1. To **analyze** the dataset collected using the *Fit Bit Charge 3*  
+2. To **predict** the amount of Calories Burned by *Fit Bit* user  
+3. To **observe** the differences in prediction result and performance in **K-Means Clustering** and **Regression Tree**  
+
+The dataset wad obtained/collected from controlled group. A total of 63 subject voluntarily participated the experiment. Subjects were given *Fit Bit Charge 3(s)* to wear during work hours, and at the end of the day, the data were noted. Attributes noted were Average Heart Rate, total floors they climbed, total steps, their average stress level index, and total calories burned throughout their working hour, as well as the hours of sleep they got the previous night. This was recorded for 8 days.
+
+<br>
+
+#### Loading the Data
+
+First, we're going to load the data into the R workspace, and name it `data` and make sure that each column is in the correct data type.
+
+```{r echo=TRUE, warning=FALSE, tidy=TRUE, out.width='\\textwidth', results='hide'}
+# importing dataset
+data <- as.data.frame(read_excel('C:/Users/Sony/Documents/Amadea/RStudio/R Files/Fitbit Charge 3 Insight/data1 - edited.xlsx', sheet='Raw'))
+data$Person <- as.character(data$Person)
+data$Gender <- as.factor(data$Gender)
+data$Day <- as.factor(data$Day)
+head(data)
+```
+
+```{r echo=FALSE}
+# to display head(data) in a more tidy format
+knitr::kable(head(data), format="markdown")
+```
+
+The preview of the data set above shows that there are 10 with description variables as follows:
+
+<center>
+<table class="center">
+  <tr>
+    <th> Variable </th>
+    <th> Description </th>
+  </tr>
+  <tr>
+    <td>`Person`</td>
+    <td>Number to Identify Subject</td>
+  </tr>
+  <tr>
+    <td>`Gender`</td>
+    <td>Scientific gender classification `P` for Female and `L` for Male</td>
+  </tr>
+  <tr>
+    <td>`Age`</td>
+    <td>Age of subject (*years*)</td>
+  </tr>
+  <tr>
+    <td>`Day`</td>
+    <td>Day the Data was Recorded, `0-7`</td>
+  </tr>
+  <tr>
+    <td>`Heart Rate`</td>
+    <td>Average heart rate per working day (*bpm*)</td>
+  </tr>
+  <tr>
+    <td>`Floors Climbed`</td>
+    <td>Number of floors the subject climbed per working day (*floor(s)*)</td>
+  </tr>
+  <tr>
+    <td>`Steps`</td>
+    <td>Total steps subject walked per working day (*steps*)</td>
+  </tr>
+  <tr>
+    <td>`Total Sleep`</td>
+    <td>Total duration of sleep the previous night (*hour(s)*)</td>
+  </tr>
+  <tr>
+    <td>`Stress Level`</td>
+    <td>Stress level index</td>
+  </tr>
+  <tr>
+    <td>`Calories Burned` &nbsp; </td>
+    <td>Total calories burned per working day (*cal*)</td>
+  </tr>
+</table>
+</center>
+
+<br>
+
+#### Descriptive Statistics
+
+Next, we observe the dimensions of the data. We find that the data consisted of `10` columns representing each variable and `504` rows representing the number of data collected. We also can observe the `datatype` of each variable/column and a brief descriptive summary for each of the variables from the results below.
+```{r echo=TRUE, warning=FALSE, max.height='100px'}
+# showing the number of rows and columns of the dataset
+dim(data)
+
+# displaying datatype of each column
+str(data)
+
+# displaying descriptive statistics about each column
+options(width = 120)
+summary(data)
+```
+From the results shown above, we can summarize that there are `280` male subjects and `224` female subjects. The youngest subject is `22` years old and the oldest subject is `73` year old. The average heart rate for subjects is `62.39` bpm, while their average total sleep is `6.713` hours. On average subjects walks `7630` steps and climbs `5.401` floors each day. Subjects expereinced an average of `36.78` on the stress level index and burned `2689` calories each day.
+
+<br>
+
+#### Visualization
+
+The data above then can be visualised as follows:
+```{r heart-floor-plot, dev='png', fig.show='hide', include=FALSE, warning=FALSE}
+attach(data)
+par(mfrow=c(1,2), mar = c(5,4,4,2))
+hist(`Heart Rate`, xlab = 'Heart Rate', main = 'Histogram of Heart Rate', col = "#FFCCBC", border = "darkred")
+hist(`Floors Climbed`, xlab = 'Floors Climbed', main = 'Histogram of Floors Climbed', col = "#FFCCBC", border = "darkred")
+```
+
+```{r steps-sleep-plot, dev='png', fig.show='hide', include=FALSE, warning=FALSE}
+par(mfrow=c(1,2), mar = c(5,4,4,2))
+hist(Steps, xlab = 'Steps', main = 'Histogram of Steps', col = "#FFCCBC", border = "darkred")
+hist(`Total Sleep`, xlab = 'Total Sleep', main = 'Histogram of Total Sleep', col = "#FFCCBC", border = "darkred")
+
+```
+
+```{r stress-cals-plot, dev='png', fig.show='hide', include=FALSE, warning=FALSE}
+par(mfrow=c(1,2), mar = c(5,4,4,2))
+hist(`Stress Level`, xlab = 'Stress Level', main = 'Histogram of Stress Level', col = "#FFCCBC", border = "darkred")
+hist(`Calories Burned`, xlab = 'Calories Burned', main = 'Histogram of Calories Burned', col = "#FFCCBC", border = "darkred")
+```
+
+```{r gender-age-plot, dev='png', fig.show='hide', include=FALSE, warning=FALSE}
+# displaying the plots
+par(mfrow=c(1,2), mar = c(5,4,4,2))
+barplot(table(as.factor(Gender)), xlab = 'Gender', ylab = 'Frequency', main = 'Histogram of Gender', axes = TRUE, axis.lty = 1, col = "#FFCCBC", border = "darkred")
+hist(Age, xlab = 'Age', main = 'Histogram of Age', col = "#FFCCBC", border = "darkred")
+```
+
+:::: {style="display: grid; grid-template-columns: 1fr 1fr;"}
+
+::: {}
+
+![Fig. 1 Gender and Age Histogram](`r knitr::fig_chunk('gender-age-plot', 'png')`)
+
+
+![Fig. 3 Heart Rate and Floors Climbed Histogram](`r knitr::fig_chunk('heart-floor-plot', 'png')`)
+
+:::
+
+::: {}
+
+![Fig. 2 Total Steps and Total Sleep Histogram](`r knitr::fig_chunk('steps-sleep-plot', 'png')`)
+
+
+![Fig. 4 Stress and Calories Burned Histogram](`r knitr::fig_chunk('stress-cals-plot', 'png')`)
+
+:::
+
+::::
+
+We can see that from the variables visualized in the histogram above, that only `Calories Burned` seem to be following a normal distribution. On the other hand, `Total Sleep`, `Heart Rate`, and `Stress Level` managed a steeper/sharper distribution than that of a normal distribution. While `Age`, `Steps`, and `Floors Climbed` are following a more skewed distribution.
+
+<br>
+
+#### Relationship Between Columns
+
+Moving on from that, next we observed how each of the variables correlate to each other. We are trying to see whether or not meaningful information can be infered using correlation values between two variables.
+
+```{r echo=TRUE, warning=FALSE}
+# remove non-numerical data
+a <-data[,-c(1,2,4)]
+
+# creating correlation matrix
+corr_mat <- as.data.frame(round(cor(a),2))
+```
+
+```{r corr-plot, dev='png', fig.show='hide', include=FALSE, warning=FALSE}
+# plotting the correlation heatmap
+ggcorrplot(corr_mat, outline.color = "white", ggtheme = ggplot2::theme_gray, type = "lower", title = "Correlation Heatmap")
+```
+
+:::: {style="display: grid; grid-template-columns: 1fr 1fr;"}
+
+::: {}
+
+![Fig. 5 Correlation Heat Map Between Columns](`r knitr::fig_chunk('corr-plot', 'png')`)
+
+:::
+
+::: {}
+
+```{r echo=FALSE}
+# to display head(data) in a more tidy format
+knitr::kable(corr_mat, format="markdown")
+```
+
+:::
+
+::::
+
+Paying attention to both the correlation matrix and the heatmap given, we can tell that a few variables have higher correlation with certain variables than others. The `Calories Burned` variable seem to have a higher correlation with variables `Steps`, `Floors Climbed`, and `Age`. Other variables that also have high correlation with each other are, `Stress Level` with `Steps` and `Heart Rate`, as well as `Age` and `Heart Rate`.
+
+<br>
+
+#### Observing Relationship between Columns with Higher Correlation
+
+```{r vars1-plot, dev='png', fig.show='hide', include=FALSE, warning=FALSE}
+plot(Age, `Calories Burned`, main = "Age vs Calories Burned", type = "p", col = "#a868d9")
+```
+
+```{r vars2-plot, dev='png', fig.show='hide', include=FALSE, warning=FALSE}
+plot(`Floors Climbed`, `Calories Burned`, main = "Floors Climbed vs Calories Burned", type = "p", col = "#a868d9")
+```
+
+```{r vars3-plot, dev='png', fig.show='hide', include=FALSE, warning=FALSE}
+plot(Steps, `Calories Burned`, main = "Steps vs Calories Burned", type = "p", col = "#a868d9")
+```
+
+```{r vars4-plot, dev='png', fig.show='hide', include=FALSE, warning=FALSE, fig.align='center'}
+plot(`Stress Level`, `Heart Rate`, main = "Stress Level vs Heart Rate", type = "p", col = "#a868d9")
+```
+
+```{r vars5-plot, dev='png', fig.show='hide', include=FALSE, warning=FALSE}
+plot(`Stress Level`, Steps, main = "Stress Level vs Steps", type = "p", col = "#a868d9")
+```
+
+```{r vars6-plot, dev='png', fig.show='hide', include=FALSE, warning=FALSE}
+plot(Age, `Floors Climbed`, main = "Age vs Floors Climbed", type = "p", col = "#a868d9")
+```
+
+Since we are focusing on predicting the amount of `Calories Burned` we are going to observe it first. Plotted below, are the datapoints that represents relationships between two variables. Fig. 6 shows that there appears to be a relationship between `Age` and `Calories Burned`, however since there are many other variables involved and the two aren't observed in a vacuum, the relationship shows to be non-directional. Fig.7 shows that - erasing outliers - there is a highly positive linear relationship between `Steps` and `Calories Burned`. It infers that the increase in `Steps` walked while holding all else constant, may increase the amount of `Calories Burned`. Fig. 8 shows a slightly positive linear relationship between number of `Floors Climbed` and `Calories Burned`. In which holding all else constant, and increase in number of `Floors CLimbed` may slightly increase `Calories Burned`.
+
+
+:::: {style="display: grid; grid-template-columns: 1fr 1fr 1fr;"}
+
+::: {}
+
+![Fig. 6 Relationship Between Calories Burned and Age](`r knitr::fig_chunk('vars1-plot', 'png')`)
+
+:::
+
+::: {}
+
+![Fig. 7 Relationship Between Calories Burned and Steps](`r knitr::fig_chunk('vars3-plot', 'png')`)
+:::
+
+::: {}
+
+![Fig. 8 Relationship Between Calories Burned and Floors Climbed](`r knitr::fig_chunk('vars2-plot', 'png')`)
+
+:::
+
+::::
+
+In Fig. 9 we can see a non-directional relationship between `Stress Level` and `Heart Rate`. It shows that both are factors that influence each other but its directional impact cannot be concluded because the data isn't collected in a vacuum. The same can be seen in Figures 10 and 11. Where it shows that both variables influence each other but the relationship cannot be defined linearly.
+
+
+:::: {style="display: grid; grid-template-columns: 1fr 1fr 1fr;"}
+
+::: {}
+
+![Fig. 9 Relationship Between Stress Level and Heart Rate](`r knitr::fig_chunk('vars4-plot', 'png')`)
+
+:::
+
+::: {}
+
+![Fig. 10 Relationship Between Stress Level and Steps](`r knitr::fig_chunk('vars5-plot', 'png')`)
+:::
+
+::: {}
+
+![Fig. 11 Relationship Between Age and Floors Climbed](`r knitr::fig_chunk('vars6-plot', 'png')`)
+
+:::
+
+::::
+
+<br>
+
+#### Observing behaviour differences among age group
+
+The data above haven't quite shown the significance of `Age` towards `Calories Burned`. However, Medical News Today published that one of the common factors of calorie loss is age. They said that as a person's age increases, said person's ability to burn calories decreases. But since the data fails to show that, we thought that maybe seperating them into age groups may show certain behaviors unique to certain age groups.
+
+
+```{r echo=TRUE, warning=FALSE}
+# categorizing ages into four age groups
+you <- data[which(Age<25),]
+yad <- data[which(Age>=25 & Age<35),]
+adl <- data[which(Age>=35 & Age<65),]
+sen <- data[which(Age>=65),]
+
+age_group <- c(nrow(you), nrow(yad), nrow(adl), nrow(sen))
+age_labels <- c('<25', '25-34', '35-64', '>64')
+age_percent <- percent(age_group/sum(age_group))
+```
+
+```{r agegroup1-plot, dev='png', fig.show='hide', include=FALSE, warning=FALSE}
+pie(age_group, labels = age_percent, main = "Age Group", col = c("#a868d9", "#EF8A87", "#FFB69B", "#D8BBEE"), radius = 0.8)
+legend("bottomleft", age_labels, cex = 1.2, fill = c("#a868d9", "#EF8A87", "#FFB69B", "#D8BBEE"))
+```
+
+```{r agegroup2-plot, dev='png', fig.show='hide', include=FALSE, warning=FALSE}
+barplot(age_group, names.arg = age_labels, axes = TRUE, horiz = TRUE, axis.lty = 1, col = c("#a868d9", "#EF8A87", "#FFB69B", "#D8BBEE"))
+```
+
+:::: {style="display: grid; grid-template-columns: 1fr 1fr 1fr;"}
+
+::: {}
+
+![Fig. 12 age Group Pie Chart](`r knitr::fig_chunk('agegroup1-plot', 'png')`)
+
+:::
+
+::: {}
+
+![Fig. 13 Age Group Bar Chart](`r knitr::fig_chunk('agegroup2-plot', 'png')`)
+
+:::
+
+::: {}
+<br>
+<br>
+<br>
+So, using a common age category, we are going to divide the data into four different age groups, labeled *Youth* for subjects ages less than 25, *Young Adults* for subjects ages 25-34, *Adults* for subjects ages 35-64, and *Seniors* for subjects ages 65 and older.
+
+:::
+
+::::
+
+
+```{r you-plot, dev='png', fig.show='hide', include=FALSE}
+ggcorrplot(cor(you[, -c(1,2,4)]), outline.color = "white", ggtheme = ggplot2::theme_gray, type = "lower", title = "Youth (Ages < 24)")
+```
+
+```{r yad-plot, dev='png', fig.show='hide', include=FALSE}
+ggcorrplot(cor(yad[, -c(1,2,4)]), outline.color = "white", ggtheme = ggplot2::theme_gray, type = "lower", title = "Young Adults (Ages 25-34)")
+```
+
+
+```{r adl-plot, dev='png', fig.show='hide', include=FALSE}
+ggcorrplot(cor(adl[, -c(1,2,4)]), outline.color = "white", ggtheme = ggplot2::theme_gray, type = "lower", title = "Adults (Ages 35-64)")
+```
+
+```{r sen-plot, dev='png', fig.show='hide', include=FALSE}
+ggcorrplot(cor(sen[, -c(1,2,4)]), outline.color = "white", ggtheme = ggplot2::theme_gray, type = "lower", title = "Seniors (Ages > 64)")
+```
+
+After separating data into 4 different age groups. We will observe for differences or changes in correlations between variables. The results can be seen in correlation heat maps as shown in Figures 14 - 17 below.
+
+
+:::: {style="display: flex;"}
+
+::: {}
+
+![Fig. 14 Correlation Heat Map for Youth](`r knitr::fig_chunk('you-plot', 'png')`)
+
+:::
+
+::: {}
+
+![Fig. 15 Correlation Heat Map for Adults](`r knitr::fig_chunk('adl-plot', 'png')`)
+:::
+
+::: {}
+
+![Fig. 16 Correlation Heat Map for Young Adults](`r knitr::fig_chunk('yad-plot', 'png')`)
+
+:::
+
+::: {}
+
+![Fig. 17 Correlation Heat Map for Seniors](`r knitr::fig_chunk('sen-plot', 'png')`)
+:::
+
+::::
+
+Before commenting on the differeneces, we would first like to point out that the one variable that maintain high correlation with `Calories Burned` within all age groups is `Steps`. It is interesting that not only was it the variable that shows high positive linear relationship but also high consitency in correlation with `Calories Burned` within different age groups. So, we can confidently say that `Steps` will be one of the indepent variables in predicting `Calories Burned`.
+<br>
+Although when observing differences in behavior with respect to age groups, no specific variable show trends or distinct difference in behavior. However, it is interesting to see, that as the age group gets older, a lot more factors or variables seem to influence or correlate with each other includign `Calories Burned`. The data may not confirm or deny anything here, but it is an interesting point to further research on.
+
+<br>
+
+#### Seperating Training and Testing Data
+
+Since not much else information can be extracted from the complete data, now we are going to continue with the third objective of this analysis. That is to observe the differences in prediction performance between K-Means Clustering and Regression Tree. Before we do that, we will first seperate the data into training data and testing data with a 3:1 ratio.
+
+```{r echo=TRUE, warning=FALSE, results='hide'}
+data_avg <- as.data.frame(read_excel('C:/Users/Sony/Documents/Amadea/RStudio/R Files/Fitbit Charge 3 Insight/data1 - edited.xlsx', sheet='Avg'))
+head(data_avg)
+```
+
+```{r echo=FALSE}
+# to display head(data) in a more tidy format
+knitr::kable(head(data_avg), format="markdown")
+```
+
+```{r echo=TRUE, warning=FALSE}
+# to randomize data that joins the train data set
+index <- sample.int(n = nrow(data_avg), size = floor(.75*nrow(data_avg)), replace = F)
+
+# to separate training data and test data for K-means clustering
+data_km <- data_avg[,-c(1,2)]
+row.names(data_km) <- c(1:63)
+train_km <- data_km[index,]
+test_km <- data_km[-index,]
+
+# to separate training data and test data for Regression Tree
+train_rt <- data_avg[index,]
+test_rt <- data_avg[-index,]
+data_rt <- train_rt[,-c(1,4)]
+```
+
+<br>
+
+#### K-Means Clustering
+
+K-means clustering (MacQueen 1967) is one of the most commonly used unsupervised machine learning algorithm for partitioning a given data set into a set of *k* groups (i.e. *k* clusters), where *k* represents the number of groups pre-specified by the analyst.
+
+<br>
+
+:::: {style="display: grid; grid-template-columns: 1fr 1fr;grid-column-gap: 20px;"}
+
+::: {}
+```{r elbow-plot, dev='png', fig.show='hide', include=FALSE}
+fviz_nbclust(train_km, kmeans, method = "wss")
+```
+
+![Fig. 18 Plotting Optimal Number of Clusters](`r knitr::fig_chunk('elbow-plot', 'png')`){width=75%}
+:::
+
+::: {}
+The idea is to compute k-means clustering using different values of clusters *k*. Next, the *wss* (within sum of square) is drawn according to the number of clusters. The location of a bend (knee) in the plot is generally considered as an indicator of the appropriate number of clusters. 
+<br>
+<br>
+The plot to the left represents the variance within the clusters. It decreases as *k* increases, but a bend (or “elbow”) can be seen at *k = 4*. This bend indicates that additional clusters beyond the fourth have little value. So, we are going to perform K-means clustering with *k = 4*
+
+:::
+
+::::
+
+<br>
+<br>
+
+```{r echo=TRUE, warning=FALSE}
+# execute k-means clustering with 4 clusters or centroids
+mod_k1 <- kmeans(train_km, centers=4, nstart = 25)
+```
+
+<br>
+
+:::: {style="display: grid; grid-template-columns: 1fr 1fr;grid-column-gap: 30px;"}
+
+::: {}
+K-means clustering with *k = 4* was executed and the results are clusters with means and description of variables as seen on the table below. There are four clusters and theses clusters and categorization will be used to predict `Calories Burned`.
+
+```{r echo=FALSE}
+clus1 <- aggregate(train_km, by=list(cluster=mod_k1$cluster), mean)
+# to display head(data) in a more tidy format
+knitr::kable(clus1, format="markdown")
+```
+
+:::
+
+::: {}
+
+
+```{r echo=FALSE, warning=FALSE}
+fviz_cluster(mod_k1, data = train_km) +
+scale_colour_manual(values = c("#a868d9", "#EF8A87", "#FFB69B", "#D8BBEE")) +
+scale_fill_manual(values = c("#a868d9", "#EF8A87", "#FFB69B", "#D8BBEE")) 
+```
+:::
+
+::::
+
+Now that we have created and defined the clusters, we are able to use these cluster criteria to predict the `Calories Burned` by using the information given by the `test` data. The results of the prediction and the percentage of error in prediction by the K-means Clustering model can be seen below.
+
+```{r echo=TRUE, warning=FALSE}
+options(width = 110)
+yhat_clus1 <- clus1$`Calories Burned`[cl_predict(mod_k1, test_km)]
+yhat_clus1
+
+total_actual_km <- sum(test_km$`Calories Burned`)
+total_clus1 <- sum(yhat_clus1)
+percentage_error_km <- abs(total_actual_km-total_clus1)/(total_actual_km)
+percentage_error_km
+
+```
+
+
+<br>
+
+#### Regression Tree
+
+According to investigations about the data and relationships between variables and `Calories Burned`, we saw that most of the relationship cannot be drawn linearly. Given that the relationship between a set of predictors and a response is more complex, then non-linear methods can often produce more accurate models. One of the more commonly use non-linear methods of anlysis is classification and regression trees.
+
+<br>
+Classification and Regression Tree (CART) use a set of predictor variable to build decision trees that predict the value of a response variable. Since the response variable is continuos, Regression Tree is the one we would use.
+
+```{r echo=TRUE, warning=FALSE}
+# using regression tree function
+tree1 <- rpart(`Calories Burned`~., data=data_rt, control=rpart.control(cp=.0001))
+printcp(tree1)
+```
+
+The regression tree analysis was executed and the results can be visualized in the form of the decision tree itself as attached below.
+
+:::: {style="display: grid; grid-template-columns: 1fr 1fr;grid-column-gap: 10px;"}
+
+::: {}
+
+```{r echo=TRUE, warning=FALSE}
+#plot the final tree
+prp(tree1,
+    faclen=0, #use full names for factor labels
+    extra=1, #display number of obs. for each terminal node
+    roundint=F, #don't round to integers in output
+    digits=5) #display 5 decimal places in output
+```
+
+:::
+
+::: {}
+
+```{r echo=TRUE}
+# displaying order of variable importance
+vImp <- tree1$variable.importance
+vImp <- vImp*100/max(vImp)
+ind <- order(vImp)
+par(las=2)
+par(mar=c(3,8,1,1))
+barplot(vImp[ind],main="", horiz=TRUE, names.arg=names(vImp[ind]), col = c("#a868d9", "#EF8A87", "#FFB69B", "#D8BBEE", "#FDE9DD", "#F7E7FB"))
+```
+
+:::
+
+::::
+
+Pruning would be necessary if the number of branches are enormous. However since, the model we obtained has a limited amount, pruning won't be necessary. Now that we have created this Regression Tree model, we can use it to decide or predict `Calories Burned` of the `test` data. The results of the prediction can be seen below, as well as the percentage of error in prediction by the Regression Tree.
+
+```{r echo=TRUE}
+yhat_tree1 <- predict(tree1, test_rt)
+head(yhat_tree1)
+
+total_actual_rt <- sum(test_rt$`Calories Burned`)
+total_tree1 <- sum(yhat_tree1)
+percentage_error_rt <- abs(total_actual_rt-total_tree1)/(total_actual_rt)
+percentage_error_rt
+```
